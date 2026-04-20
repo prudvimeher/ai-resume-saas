@@ -107,7 +107,7 @@ export default function LoginPage() {
         AI Resume Optimizer
       </Link>
 
-      <div className="w-full max-w-[400px]">
+      <div className="w-full max-w-100">
         <AuthForm
           type="login"
           title="Welcome back"

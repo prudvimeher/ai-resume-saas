@@ -95,7 +95,7 @@ export default function SignupPage() {
         AI Resume Optimizer
       </Link>
 
-      <div className="w-full max-w-[400px]">
+      <div className="w-full max-w-100">
         <AuthForm
           type="signup"
           title="Create account"
