@@ -6,7 +6,8 @@ import { useState } from "react";
 
 import AuthForm from "@/components/AuthForm";
 
-const LOGIN_URL = "http://127.0.0.1:8000/login";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
+const LOGIN_URL = `${API_URL}/login`;
 
 type LoginResponse = {
   access_token?: string;
@@ -81,7 +82,7 @@ export default function LoginPage() {
     } catch (loginError) {
       if (loginError instanceof TypeError) {
         setError(
-          "Could not reach the backend. Make sure FastAPI is running at http://127.0.0.1:8000.",
+          `Could not reach the backend at ${API_URL}. Make sure FastAPI is running.`,
         );
         return;
       }

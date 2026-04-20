@@ -4,9 +4,7 @@ import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 
 const MAX_FILE_SIZE_MB = 10;
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ??
-  "http://127.0.0.1:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 
 type AnalyzeResponse = {
   score: number;
@@ -151,7 +149,7 @@ export default function UploadBox() {
       const requestBody = new FormData();
       requestBody.append("file", file);
 
-      const response = await fetch(`${API_BASE_URL}/analyze`, {
+      const response = await fetch(`${API_URL}/analyze`, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -178,7 +176,7 @@ export default function UploadBox() {
     } catch (uploadError) {
       if (uploadError instanceof TypeError) {
         setError(
-          `Could not reach the backend at ${API_BASE_URL}. Make sure FastAPI is running on port 8000.`,
+          `Could not reach the backend at ${API_URL}. Make sure FastAPI is running.`,
         );
         return;
       }
