@@ -2,7 +2,7 @@ import traceback
 from io import BytesIO
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile as FastAPIUploadFile
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from database import SessionLocal, get_db
 from models.resume import Resume
 from schemas.resume import ResumeRequest
 from services.ai import analyze_resume_pdf_with_ai, analyze_resume_with_ai
+from services.job_description_service import get_job_description_text
 
 router = APIRouter()
 
@@ -113,15 +114,28 @@ def save_resume_analysis(text: str, score: int) -> None:
 
 
 @router.post("/analyze")
-async def analyze_resume(request: Request):
+async def analyze_resume(
+    request: Request,
+    job_description_text: str | None = Form(None),
+    job_description_file: FastAPIUploadFile | None = File(None),
+):
     try:
         text, pdf_contents = await get_resume_payload_from_request(request)
+        try:
+            jd_text = await get_job_description_text(
+                text=job_description_text,
+                file=job_description_file,
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        print(f"[DEBUG] JD Text extracted: {jd_text[:200] if jd_text else 'None'}")
 
         if text:
-            ai_result = analyze_resume_with_ai(text)
+            ai_result = analyze_resume_with_ai(text, jd_text=jd_text)
             content_to_save = text
         elif pdf_contents:
-            ai_result = analyze_resume_pdf_with_ai(pdf_contents)
+            ai_result = analyze_resume_pdf_with_ai(pdf_contents, jd_text=jd_text)
             content_to_save = "[PDF resume analyzed by Gemini]"
         else:
             return error_response("Could not read uploaded resume")
@@ -135,6 +149,8 @@ async def analyze_resume(request: Request):
             "score": score,
             "suggestions": suggestions,
         }
+    except HTTPException:
+        raise
     except Exception as exc:
         print(exc)
         traceback.print_exc()
