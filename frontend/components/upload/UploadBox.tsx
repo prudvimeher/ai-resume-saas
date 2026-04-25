@@ -47,6 +47,10 @@ export default function UploadBox() {
   const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [jdMode, setJdMode] = useState<"none" | "text" | "file">("none");
+  const [jdText, setJdText] = useState("");
+  const [jdFile, setJdFile] = useState<File | null>(null);
+  const jdInputRef = useRef<HTMLInputElement>(null);
 
   function resetProgress() {
     if (progressTimerRef.current) {
@@ -118,16 +122,44 @@ export default function UploadBox() {
     validateAndSetFile(event.dataTransfer.files[0]);
   }
 
+  function clearJd() {
+    setJdText("");
+    setJdFile(null);
+    if (jdInputRef.current) jdInputRef.current.value = "";
+  }
+
   function clearFile() {
     setFile(null);
     setError("");
     setResult(null);
     setIsAnalyzing(false);
     resetProgress();
+    clearJd();
 
     if (inputRef.current) {
       inputRef.current.value = "";
     }
+  }
+
+  function handleJdFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const selected = event.target.files?.[0];
+    if (!selected) return;
+
+    const name = selected.name.toLowerCase();
+    if (!name.endsWith(".pdf") && !name.endsWith(".docx")) {
+      setError("Job description must be a PDF or DOCX file.");
+      setJdFile(null);
+      return;
+    }
+
+    if (selected.size > MAX_FILE_SIZE_BYTES) {
+      setError(`Job description file must be smaller than ${MAX_FILE_SIZE_MB} MB.`);
+      setJdFile(null);
+      return;
+    }
+
+    setError("");
+    setJdFile(selected);
   }
 
   async function handleAnalyze() {
@@ -148,6 +180,12 @@ export default function UploadBox() {
 
       const requestBody = new FormData();
       requestBody.append("file", file);
+      if (jdMode === "text" && jdText.trim()) {
+        requestBody.append("job_description_text", jdText.trim());
+      }
+      if (jdMode === "file" && jdFile) {
+        requestBody.append("job_description_file", jdFile);
+      }
 
       const response = await fetch(`${API_URL}/analyze`, {
         method: "POST",
@@ -282,6 +320,110 @@ export default function UploadBox() {
         </div>
       ) : null}
 
+      {/* Job Description Section */}
+      <div className="mt-6">
+        <p className="text-sm font-semibold text-zinc-950 mb-3">
+          Job Description{" "}
+          <span className="font-normal text-zinc-400">(optional)</span>
+        </p>
+
+        {/* Mode selector tabs */}
+        <div className="flex gap-2 mb-4">
+          {(["none", "text", "file"] as const).map((mode) => {
+            const labels = { none: "Skip", text: "Paste Text", file: "Upload File" };
+            const isActive = jdMode === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setJdMode(mode);
+                  clearJd();
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1 ${
+                  isActive
+                    ? "bg-zinc-950 text-white shadow-sm"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                {labels[mode]}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Text input */}
+        {jdMode === "text" && (
+          <div className="relative">
+            <textarea
+              value={jdText}
+              onChange={(e) => setJdText(e.target.value)}
+              placeholder="Paste the job description here…"
+              rows={5}
+              className="w-full rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-950 placeholder-zinc-400 transition-colors focus:border-zinc-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-1 resize-none"
+            />
+            {jdText && (
+              <button
+                type="button"
+                onClick={() => setJdText("")}
+                className="absolute top-2 right-2 text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* File input */}
+        {jdMode === "file" && (
+          <div>
+            {!jdFile ? (
+              <label
+                htmlFor="jd-file"
+                className="flex cursor-pointer flex-col items-center rounded-md border border-dashed border-zinc-300 bg-zinc-50 px-6 py-6 text-center transition-colors hover:border-zinc-400 hover:bg-white"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-md bg-white text-xs font-semibold text-zinc-950 shadow-sm border border-zinc-100">
+                  JD
+                </span>
+                <span className="mt-3 text-sm font-medium text-zinc-700">
+                  Drop job description here
+                </span>
+                <span className="mt-1 text-xs text-zinc-400">
+                  PDF or DOCX, up to {MAX_FILE_SIZE_MB} MB
+                </span>
+                <input
+                  ref={jdInputRef}
+                  id="jd-file"
+                  type="file"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleJdFileChange}
+                  className="sr-only"
+                />
+              </label>
+            ) : (
+              <div className="flex items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-zinc-950">{jdFile.name}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">
+                    {formatFileSize(jdFile.size)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setJdFile(null);
+                    if (jdInputRef.current) jdInputRef.current.value = "";
+                  }}
+                  className="text-xs text-zinc-400 hover:text-zinc-700 transition-colors px-2 py-1 rounded hover:bg-zinc-100"
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <button
         type="button"
         onClick={handleAnalyze}
@@ -299,18 +441,52 @@ export default function UploadBox() {
       </button>
 
       {result ? (
-        <div className="mt-6 rounded-md border border-zinc-200 p-4">
-          <p className="text-base font-semibold text-zinc-950">
-            Score: {result.score}
-          </p>
-          <div className="mt-4">
-            <p className="text-sm font-semibold text-zinc-700">Suggestions</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-zinc-600">
-              {result.suggestions.map((suggestion) => (
-                <li key={suggestion}>{suggestion}</li>
-              ))}
-            </ul>
+        <div className="mt-6 rounded-md border border-zinc-200 bg-white p-5 shadow-sm">
+          {/* Score row */}
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm font-semibold text-zinc-950">ATS Score</p>
+            <span
+              className={`text-2xl font-bold tabular-nums ${
+                result.score >= 75
+                  ? "text-emerald-600"
+                  : result.score >= 50
+                    ? "text-amber-500"
+                    : "text-red-500"
+              }`}
+            >
+              {result.score}
+              <span className="text-sm font-normal text-zinc-400">/100</span>
+            </span>
           </div>
+
+          {/* Score bar */}
+          <div className="h-1.5 rounded-full bg-zinc-100 mb-5">
+            <div
+              className={`h-1.5 rounded-full transition-all duration-500 ${
+                result.score >= 75
+                  ? "bg-emerald-500"
+                  : result.score >= 50
+                    ? "bg-amber-400"
+                    : "bg-red-400"
+              }`}
+              style={{ width: `${result.score}%` }}
+            />
+          </div>
+
+          {/* Suggestions */}
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-3">
+            Insights
+          </p>
+          <ul className="space-y-2">
+            {result.suggestions.map((suggestion, i) => (
+              <li key={i} className="flex gap-3 text-sm text-zinc-700 leading-relaxed">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-500">
+                  {i + 1}
+                </span>
+                {suggestion}
+              </li>
+            ))}
+          </ul>
         </div>
       ) : null}
     </div>
